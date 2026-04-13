@@ -11,14 +11,71 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+
+	"github.com/shar1mo/wishlist-api/internal/auth"
+	"github.com/shar1mo/wishlist-api/internal/config"
+	"github.com/shar1mo/wishlist-api/internal/handler"
+	"github.com/shar1mo/wishlist-api/internal/middleware"
+	"github.com/shar1mo/wishlist-api/internal/repository/postgres"
+	"github.com/shar1mo/wishlist-api/internal/service"
 )
 
 func main() {
+	cfg, err := config.Load()
+	if err != nil {
+		log.Fatalf("load config: %v", err)
+	}
+
+	ctx := context.Background()
+
+	db, err := pgxpool.New(ctx, cfg.DBConnString())
+	if err != nil {
+		log.Fatalf("create db pool: %v", err)
+	}
+	defer db.Close()
+
+	if err := db.Ping(ctx); err != nil {
+		log.Fatalf("ping db: %v", err)
+	}
+
+	userRepo := postgres.NewUserRepository(db)
+	jwtManager := auth.NewJWTManager(cfg.JWTSecret, cfg.JWTTTL)
+	authService := service.NewAuthService(userRepo, jwtManager)
+	authHandler := handler.NewAuthHandler(authService)
+
 	router := chi.NewRouter()
 	router.Get("/health", healthHandler)
 
+	router.Route("/api/v1", func(r chi.Router) {
+		r.Route("/auth", func(r chi.Router) {
+			r.Post("/register", authHandler.Register)
+			r.Post("/login", authHandler.Login)
+		})
+
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.Auth(jwtManager))
+
+			r.Get("/me", func(w http.ResponseWriter, r *http.Request) {
+				userID, ok := middleware.GetUserIDFromContext(r.Context())
+				if !ok {
+					w.Header().Set("Content-Type", "application/json")
+					w.WriteHeader(http.StatusUnauthorized)
+					_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
+					return
+				}
+
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_ = json.NewEncoder(w).Encode(map[string]any{
+					"user_id": userID,
+				})
+			})
+		})
+	})
+
 	srv := &http.Server{
-		Addr:              ":8080",
+		Addr:              ":" + cfg.ServerPort,
 		Handler:           router,
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       10 * time.Second,
@@ -26,23 +83,23 @@ func main() {
 		IdleTimeout:       60 * time.Second,
 	}
 
-	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
+	shutdownCtx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
 	go func() {
-		<-ctx.Done()
+		<-shutdownCtx.Done()
 
 		log.Println("shutting down server...")
 
-		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer cancel()
 
-		if err := srv.Shutdown(shutdownCtx); err != nil {
+		if err := srv.Shutdown(ctx); err != nil {
 			log.Printf("shutdown error: %v", err)
 		}
 	}()
 
-	log.Println("wishlist-api started on :8080")
+	log.Printf("wishlist-api started on :%s", cfg.ServerPort)
 
 	if err := srv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Fatalf("server error: %v", err)
