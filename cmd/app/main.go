@@ -40,14 +40,24 @@ func main() {
 	}
 
 	userRepo := postgres.NewUserRepository(db)
+	wishlistRepo := postgres.NewWishlistRepository(db)
+
 	jwtManager := auth.NewJWTManager(cfg.JWTSecret, cfg.JWTTTL)
 	authService := service.NewAuthService(userRepo, jwtManager)
+	wishlistService := service.NewWishlistService(wishlistRepo)
+
 	authHandler := handler.NewAuthHandler(authService)
+	wishlistHandler := handler.NewWishlistHandler(
+		wishlistService,
+		middleware.GetUserIDFromContext,
+	)
 
 	router := chi.NewRouter()
+
 	router.Get("/health", healthHandler)
 
 	router.Route("/api/v1", func(r chi.Router) {
+
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/register", authHandler.Register)
 			r.Post("/login", authHandler.Login)
@@ -55,21 +65,24 @@ func main() {
 
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.Auth(jwtManager))
-
 			r.Get("/me", func(w http.ResponseWriter, r *http.Request) {
 				userID, ok := middleware.GetUserIDFromContext(r.Context())
 				if !ok {
-					w.Header().Set("Content-Type", "application/json")
-					w.WriteHeader(http.StatusUnauthorized)
-					_, _ = w.Write([]byte(`{"error":"unauthorized"}`))
+					writeUnauthorized(w)
 					return
 				}
 
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusOK)
-				_ = json.NewEncoder(w).Encode(map[string]any{
+				writeJSON(w, http.StatusOK, map[string]any{
 					"user_id": userID,
 				})
+			})
+
+			r.Route("/wishlists", func(r chi.Router) {
+				r.Post("/", wishlistHandler.Create)
+				r.Get("/", wishlistHandler.List)
+				r.Get("/{wishlistId}", wishlistHandler.GetByID)
+				r.Put("/{wishlistId}", wishlistHandler.Update)
+				r.Delete("/{wishlistId}", wishlistHandler.Delete)
 			})
 		})
 	})
@@ -107,10 +120,19 @@ func main() {
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	_ = json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, http.StatusOK, map[string]string{
 		"status": "ok",
+	})
+}
+
+func writeJSON(w http.ResponseWriter, status int, data any) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(data)
+}
+
+func writeUnauthorized(w http.ResponseWriter) {
+	writeJSON(w, http.StatusUnauthorized, map[string]string{
+		"error": "unauthorized",
 	})
 }
