@@ -42,16 +42,19 @@ func main() {
 	userRepo := postgres.NewUserRepository(db)
 	wishlistRepo := postgres.NewWishlistRepository(db)
 	itemRepo := postgres.NewItemRepository(db)
+	publicRepo := postgres.NewPublicRepository(db)
 
 	jwtManager := auth.NewJWTManager(cfg.JWTSecret, cfg.JWTTTL)
 
 	authService := service.NewAuthService(userRepo, jwtManager)
 	wishlistService := service.NewWishlistService(wishlistRepo)
 	itemService := service.NewItemService(itemRepo)
+	publicService := service.NewPublicService(publicRepo)
 
 	authHandler := handler.NewAuthHandler(authService)
 	wishlistHandler := handler.NewWishlistHandler(wishlistService, middleware.GetUserIDFromContext)
 	itemHandler := handler.NewItemHandler(itemService, middleware.GetUserIDFromContext)
+	publicHandler := handler.NewPublicHandler(publicService)
 
 	router := chi.NewRouter()
 	router.Get("/health", healthHandler)
@@ -60,6 +63,11 @@ func main() {
 		r.Route("/auth", func(r chi.Router) {
 			r.Post("/register", authHandler.Register)
 			r.Post("/login", authHandler.Login)
+		})
+
+		r.Route("/public", func(r chi.Router) {
+			r.Get("/wishlists/{token}", publicHandler.GetWishlistByToken)
+			r.Post("/wishlists/{token}/items/{itemId}/reserve", publicHandler.ReserveItem)
 		})
 
 		r.Group(func(r chi.Router) {
@@ -116,6 +124,7 @@ func main() {
 func healthHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
+
 	_ = json.NewEncoder(w).Encode(map[string]string{
 		"status": "ok",
 	})

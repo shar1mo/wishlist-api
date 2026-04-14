@@ -20,11 +20,17 @@ type WishlistRepository interface {
 	Delete(ctx context.Context, wishlistID, userID int64) error
 }
 
-
 type ItemRepository interface {
 	Create(ctx context.Context, item *model.Item, userID int64) error
 	ListByWishlistIDAndUserID(ctx context.Context, wishlistID, userID int64) ([]model.Item, error)
 	GetByIDAndWishlistIDAndUserID(ctx context.Context, itemID, wishlistID, userID int64) (*model.Item, error)
 	Update(ctx context.Context, item *model.Item, userID int64) error
 	Delete(ctx context.Context, itemID, wishlistID, userID int64) error
+}
+
+type PublicRepository interface {
+	GetWishlistByToken(ctx context.Context, token string) (*model.Wishlist, error)
+	ListItemsByWishlistToken(ctx context.Context, token string) ([]model.Item, error)
+	ReserveItemByToken(ctx context.Context, token string, itemID int64) (*model.Item, error)
+	GetItemByTokenAndID(ctx context.Context, token string, itemID int64) (*model.Item, error)
 }
