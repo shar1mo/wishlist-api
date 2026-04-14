@@ -19,3 +19,12 @@ type WishlistRepository interface {
 	Update(ctx context.Context, wishlist *model.Wishlist) error
 	Delete(ctx context.Context, wishlistID, userID int64) error
 }
+
+
+type ItemRepository interface {
+	Create(ctx context.Context, item *model.Item, userID int64) error
+	ListByWishlistIDAndUserID(ctx context.Context, wishlistID, userID int64) ([]model.Item, error)
+	GetByIDAndWishlistIDAndUserID(ctx context.Context, itemID, wishlistID, userID int64) (*model.Item, error)
+	Update(ctx context.Context, item *model.Item, userID int64) error
+	Delete(ctx context.Context, itemID, wishlistID, userID int64) error
+}
