@@ -2,12 +2,8 @@ package handler
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
-
-	"github.com/go-chi/chi/v5"
 
 	"github.com/shar1mo/wishlist-api/internal/model"
 	"github.com/shar1mo/wishlist-api/internal/service"
@@ -19,10 +15,6 @@ type WishlistService interface {
 	GetByID(ctx context.Context, wishlistID, userID int64) (*model.Wishlist, error)
 	Update(ctx context.Context, wishlistID, userID int64, title, description, eventDate string) (*model.Wishlist, error)
 	Delete(ctx context.Context, wishlistID, userID int64) error
-}
-
-type UserIDProvider interface {
-	GetUserID(ctx context.Context) (int64, bool)
 }
 
 type WishlistHandler struct {
@@ -53,7 +45,7 @@ func (h *WishlistHandler) Create(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req wishlistRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -137,7 +129,7 @@ func (h *WishlistHandler) Update(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req wishlistRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -187,9 +179,4 @@ func (h *WishlistHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func parseInt64Param(r *http.Request, key string) (int64, error) {
-	value := chi.URLParam(r, key)
-	return strconv.ParseInt(value, 10, 64)
 }

@@ -2,12 +2,8 @@ package handler
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"net/http"
-	"strconv"
-
-	"github.com/go-chi/chi/v5"
 
 	"github.com/shar1mo/wishlist-api/internal/model"
 	"github.com/shar1mo/wishlist-api/internal/service"
@@ -49,14 +45,14 @@ func (h *ItemHandler) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	wishlistID, err := parseIDParam(r, "wishlistId")
+	wishlistID, err := parseInt64Param(r, "wishlistId")
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid wishlist id")
 		return
 	}
 
 	var req itemRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -94,7 +90,7 @@ func (h *ItemHandler) List(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	wishlistID, err := parseIDParam(r, "wishlistId")
+	wishlistID, err := parseInt64Param(r, "wishlistId")
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid wishlist id")
 		return
@@ -118,13 +114,13 @@ func (h *ItemHandler) GetByID(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	wishlistID, err := parseIDParam(r, "wishlistId")
+	wishlistID, err := parseInt64Param(r, "wishlistId")
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid wishlist id")
 		return
 	}
 
-	itemID, err := parseIDParam(r, "itemId")
+	itemID, err := parseInt64Param(r, "itemId")
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid item id")
 		return
@@ -153,20 +149,20 @@ func (h *ItemHandler) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	wishlistID, err := parseIDParam(r, "wishlistId")
+	wishlistID, err := parseInt64Param(r, "wishlistId")
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid wishlist id")
 		return
 	}
 
-	itemID, err := parseIDParam(r, "itemId")
+	itemID, err := parseInt64Param(r, "itemId")
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid item id")
 		return
 	}
 
 	var req itemRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	if err := decodeJSON(r, &req); err != nil {
 		writeError(w, http.StatusBadRequest, "invalid request body")
 		return
 	}
@@ -205,13 +201,13 @@ func (h *ItemHandler) Delete(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	wishlistID, err := parseIDParam(r, "wishlistId")
+	wishlistID, err := parseInt64Param(r, "wishlistId")
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid wishlist id")
 		return
 	}
 
-	itemID, err := parseIDParam(r, "itemId")
+	itemID, err := parseInt64Param(r, "itemId")
 	if err != nil {
 		writeError(w, http.StatusBadRequest, "invalid item id")
 		return
@@ -228,9 +224,4 @@ func (h *ItemHandler) Delete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusNoContent)
-}
-
-func parseIDParam(r *http.Request, key string) (int64, error) {
-	value := chi.URLParam(r, key)
-	return strconv.ParseInt(value, 10, 64)
 }
